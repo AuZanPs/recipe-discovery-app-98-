@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { useRecipes, useRandomRecipe, useCategories, useByCategory } from '../hooks/index';
-import { processMeal } from '../types/recipe';
-import { getMealById } from '../api/mealdb';
+import { useRecipes, useRandomRecipe, useCategories, useByCategory } from '../hooks';
+import { processMeal } from '../types';
+import { getMealById } from '../api';
 import { WindowFrame } from '../components/WindowFrame/WindowFrame';
 import { SearchBar } from '../components/SearchBar/SearchBar';
 import { CategoryFilter } from '../components/CategoryFilter/CategoryFilter';
@@ -11,7 +11,7 @@ import { RecipeDetailModal } from '../components/RecipeDetailModal/RecipeDetailM
 import { Loading } from '../components/States/Loading';
 import { ErrorDialog } from '../components/States/ErrorDialog';
 import { EmptyState } from '../components/States/EmptyState';
-import { MealPartial, ProcessedMeal } from '../types/recipe';
+import { MealPartial, ProcessedMeal } from '../types';
 
 export const Home: React.FC = () => {
   const [search, setSearch] = useState('');
