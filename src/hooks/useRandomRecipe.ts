@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { getRandomMeal } from '../api/mealdb';
+import { getRandomMeal } from '../api';
 
-// Query key contract: ['random'] (always fresh)
 export const useRandomRecipe = () => {
   return useQuery({
-    queryKey: ['random'],
+    queryKey: ['meals', 'random'],
     queryFn: getRandomMeal,
-    staleTime: 0,
-    gcTime: 300_000,
+    staleTime: 0, // Always fresh
+    gcTime: 1000 * 60 * 5, // 5 minutes
   });
 };
