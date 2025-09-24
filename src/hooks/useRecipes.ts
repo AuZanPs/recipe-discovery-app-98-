@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { searchMeals } from '../api/mealdb';
+import { searchMeals } from '../api';
 
-// Query key contract: ['recipes', query]
-// Rationale: stable list key for search results; normalized timing per project defaults.
 export const useRecipes = (query: string) => {
   return useQuery({
     queryKey: ['recipes', query],
     queryFn: () => searchMeals(query),
-    enabled: query.trim().length > 0,
-    staleTime: 60_000,
-    gcTime: 300_000,
+    enabled: query.length >= 2,
+    staleTime: 60_000, // 1 minute
+    gcTime: 300_000, // 5 minutes
   });
 };
