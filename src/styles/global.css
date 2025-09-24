@@ -24,7 +24,23 @@ body { margin:0; font-family:'MS Sans Serif', sans-serif; font-size:11px; backgr
 button:hover:not(:disabled), .category-button:hover { background:var(--accent-gradient); color:#fff; }
 select { font:inherit; padding:2px 4px; border:2px inset var(--secondary-color); background:#fff; }
 .content-area { flex:1; overflow-y:auto; padding:8px; border:2px inset var(--secondary-color); background:#fff; }
-.meals-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:16px; padding:8px; }
+.meals-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:16px; padding:8px; align-items:start; }
+/* Recipe card sizing & expansion */
+.meal-card { transition: box-shadow .2s ease; }
+.meal-card.collapsed { min-height: 200px; }
+.meal-card.expanded { min-height: 220px; }
+.meal-card:hover { box-shadow:0 0 0 2px var(--accent-color); }
+.meal-card .title-bar-controls { display:flex; gap:2px; }
+.meal-card-toggle { width:22px; height:20px; font:inherit; cursor:pointer; }
+.meal-card-body { padding:8px !important; display:flex; flex-direction:column; gap:6px; }
+.meal-card-main { display:flex; gap:12px; }
+.meal-thumb { width:80px; height:80px; object-fit:cover; border:2px inset var(--secondary-color); }
+.meal-text { flex:1; min-width:0; }
+.meal-meta-line { margin:0 0 4px; font-weight:bold; font-size:12px; }
+.meal-instructions { margin:0; font-size:11px; color:#333; display:-webkit-box; -webkit-line-clamp:3; line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.meal-instructions.expanded { display:block; white-space:normal; overflow:auto; max-height:180px; }
+.meal-card-extra { border-top:1px dotted #999; padding:4px 2px 0; font-size:11px; animation:fadeSlide .25s ease; }
+@keyframes fadeSlide { from { opacity:0; transform:translateY(-4px);} to { opacity:1; transform:translateY(0);} }
 .recipe-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:1000; padding:16px; }
 .recipe-detail { max-width:800px; max-height:90vh; width:100%; overflow:hidden; display:flex; flex-direction:column; }
 .recipe-content { flex:1; overflow-y:auto; padding:16px; }
