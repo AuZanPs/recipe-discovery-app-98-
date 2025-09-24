@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { getCategories } from '../api/mealdb';
+import { getCategories } from '../api';
 
-// Query key contract: ['categories']
 export const useCategories = () => {
   return useQuery({
     queryKey: ['categories'],
     queryFn: getCategories,
-    staleTime: 60_000,
-    gcTime: 300_000,
+    staleTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 120, // 2 hours
   });
 };
