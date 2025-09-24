@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ProcessedMeal } from '../../types/recipe';
 
 interface Props {
@@ -6,7 +6,7 @@ interface Props {
   onClose: () => void;
 }
 
-export const RecipeDetailModal: React.FC<Props> = ({ meal, onClose }) => {
+export const RecipeDetailModal = ({ meal, onClose }: Props) => {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const lastFocused = useRef<HTMLElement | null>(document.activeElement as HTMLElement);
 

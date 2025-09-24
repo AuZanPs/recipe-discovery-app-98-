@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface Props {
   onSearch: (q: string) => void;
 }
 
-export const SearchBar: React.FC<Props> = ({ onSearch }) => {
+export const SearchBar = ({ onSearch }: Props) => {
   const [q, setQ] = useState('');
   const debounceRef = useRef<number>();
 

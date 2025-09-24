@@ -1,3 +1,7 @@
-// Duplicate legacy test placeholder intentionally emptied to avoid failing parse.
-// Real test implementation lives in useRecipes.smoke.test.tsx
-export {};
+// Legacy placeholder kept to avoid breaking existing references.
+// Provide at least one no-op test so Jest does not fail this suite.
+describe('legacy placeholder test', () => {
+	it('passes trivially', () => {
+		expect(true).toBe(true);
+	});
+});

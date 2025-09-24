@@ -1,8 +1,7 @@
-import React from 'react';
 
 interface Props { onClick: () => void; active?: boolean; }
 
-export const RandomRecipeButton: React.FC<Props> = ({ onClick, active }) => (
+export const RandomRecipeButton = ({ onClick, active }: Props) => (
   <button onClick={onClick} className={active ? 'active' : ''}>
     Random
   </button>

@@ -1,14 +1,15 @@
-import React from 'react';
+// New JSX transform: no need for React default import
 import './windowframe.css';
+import type { ReactNode, FC } from 'react';
 
 interface WindowFrameProps {
   title: string;
-  children: React.ReactNode;
-  controls?: React.ReactNode;
+  children: ReactNode;
+  controls?: ReactNode;
   className?: string;
 }
 
-export const WindowFrame: React.FC<WindowFrameProps> = ({ title, children, controls, className }) => {
+export const WindowFrame: FC<WindowFrameProps> = ({ title, children, controls, className }) => {
   return (
     <div className={`window ${className || ''}`.trim()}>
       <div className="title-bar">

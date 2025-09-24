@@ -1,7 +1,6 @@
-import React from 'react';
 
 interface Props { message: string; onRetry?: () => void; }
-export const ErrorDialog: React.FC<Props> = ({ message, onRetry }) => (
+export const ErrorDialog = ({ message, onRetry }: Props) => (
   <div className="error-container">
     <div className="window error-window">
       <div className="title-bar"><div className="title-bar-text">Error</div></div>

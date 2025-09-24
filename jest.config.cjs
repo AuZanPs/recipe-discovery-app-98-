@@ -14,7 +14,7 @@ module.exports = {
     '**/src/**/__tests__/**/*.{ts,tsx}',
     '**/src/**/*.{test,spec}.{ts,tsx}'
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '\\.(css|less|scss)$': '<rootDir>/src/test/styleMock.js',
     '^src/(.*)$': '<rootDir>/src/$1'
   },

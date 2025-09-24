@@ -1,4 +1,3 @@
-import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Home } from './pages/Home';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
@@ -19,7 +18,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const App: React.FC = () => (
+const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <div className="app-shell">

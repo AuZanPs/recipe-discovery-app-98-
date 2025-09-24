@@ -49,7 +49,7 @@ body {
   margin: 0;
 }
 
-.window-body {
+.window.main-shell .window-body {
   padding: 8px;
   height: calc(100vh - 80px);
   overflow: hidden;
@@ -122,9 +122,10 @@ button:hover:not(:disabled) {
 /* Meal grid */
 .meals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
   padding: 8px;
+  align-items: start;
 }
 
 .meal-card {
@@ -134,11 +135,6 @@ button:hover:not(:disabled) {
 .meal-card:hover {
   transform: scale(1.02);
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.meal-card .window-body {
-  height: auto;
-  padding: 12px;
 }
 
 .meal-card img {
@@ -151,6 +147,23 @@ button:hover:not(:disabled) {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
   padding: 16px;
+}
+
+.categories-browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 8px;
+  align-items: start;
+}
+
+.category-card {
+  height: auto !important;
+}
+
+.category-card .window-body {
+  height: auto !important;
+  padding: 8px !important;
 }
 
 .category-button {

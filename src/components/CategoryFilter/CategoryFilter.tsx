@@ -1,5 +1,4 @@
-import React from 'react';
-import { Category } from '../../types/recipe';
+import type { Category } from '../../types/recipe';
 
 interface Props {
   categories: Category[] | undefined;
@@ -7,7 +6,7 @@ interface Props {
   onChange: (value: string | undefined) => void;
 }
 
-export const CategoryFilter: React.FC<Props> = ({ categories, value, onChange }) => {
+export const CategoryFilter = ({ categories, value, onChange }: Props) => {
   return (
     <div style={{ minWidth: '160px' }}>
       <label htmlFor="categorySelect" style={{ display: 'block', marginBottom: 4, fontWeight: 'bold' }}>Category</label>

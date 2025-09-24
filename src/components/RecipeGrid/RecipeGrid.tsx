@@ -1,4 +1,3 @@
-import React from 'react';
 import { MealPartial } from '../../types/recipe';
 import { RecipeCard } from '../RecipeCard/RecipeCard';
 
@@ -7,7 +6,7 @@ interface Props {
   onSelect: (meal: MealPartial) => void;
 }
 
-export const RecipeGrid: React.FC<Props> = ({ meals, onSelect }) => {
+export const RecipeGrid = ({ meals, onSelect }: Props) => {
   return (
     <div className="meals-grid">
       {meals.map(m => (

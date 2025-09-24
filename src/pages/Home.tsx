@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { useRecipes, useRandomRecipe, useCategories, useByCategory } from '../hooks';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useRecipes, useRandomRecipe, useCategories, useByCategory, useMultipleRandomRecipes } from '../hooks';
 import { processMeal } from '../types';
 import { getMealById } from '../api';
 import { WindowFrame } from '../components/WindowFrame/WindowFrame';
@@ -13,7 +13,7 @@ import { ErrorDialog } from '../components/States/ErrorDialog';
 import { EmptyState } from '../components/States/EmptyState';
 import { MealPartial, ProcessedMeal } from '../types';
 
-export const Home: React.FC = () => {
+export const Home = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProcessed, setSelectedProcessed] = useState<ProcessedMeal | null>(null);
@@ -24,6 +24,29 @@ export const Home: React.FC = () => {
   const categories = useCategories();
   const categoryMeals = useByCategory(selectedCategory);
   const randomMeal = useRandomRecipe();
+  const multipleRandomRecipes = useMultipleRandomRecipes(4); // Reduced to 4 to minimize API calls
+
+  // Force fresh data on mount and ensure default view
+  useEffect(() => {
+    console.log('Home component mounted - ensuring default state');
+    // Always start in default view
+    setView('default');
+    // Only refetch if we don't have data and aren't already loading
+    if (!multipleRandomRecipes.data && !multipleRandomRecipes.isLoading) {
+      multipleRandomRecipes.refetch();
+    }
+  }, []); // Remove dependency to prevent infinite loops
+
+  // Debug logging
+  console.log('Home render:', {
+    view,
+    multipleRandomRecipesStatus: {
+      isLoading: multipleRandomRecipes.isLoading,
+      isError: multipleRandomRecipes.isError,
+      dataLength: multipleRandomRecipes.data?.length,
+      error: multipleRandomRecipes.error
+    }
+  });
 
   const handleSearch = useCallback((q: string) => {
     setSearch(q);
@@ -39,6 +62,13 @@ export const Home: React.FC = () => {
     setView('random');
     randomMeal.refetch();
   }, [randomMeal]);
+
+  const handleHome = useCallback(() => {
+    setSearch('');
+    setSelectedCategory(undefined);
+    setView('default');
+    multipleRandomRecipes.refetch(); // Refresh random recipes when going home
+  }, [multipleRandomRecipes]);
 
   const openMeal = useCallback(async (meal: MealPartial) => {
     if (meal.strInstructions) {
@@ -78,11 +108,12 @@ export const Home: React.FC = () => {
       if (categories.isError) return 'Categories failed to load.';
       if (categories.data) return `${categories.data.length} categories.`;
     } else if (view === 'default') {
-      if (categories.isLoading) return 'Loading categories.';
-      if (categories.isError) return 'Categories failed to load.';
+      if (multipleRandomRecipes.isLoading) return 'Loading random recipes...';
+      if (multipleRandomRecipes.isError) return 'Failed to load random recipes.';
+      if (multipleRandomRecipes.data) return `${multipleRandomRecipes.data.length} random recipes loaded.`;
     }
     return '';
-  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data]);
+  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data, multipleRandomRecipes.isLoading, multipleRandomRecipes.isError, multipleRandomRecipes.data]);
 
   if (view === 'search') {
     if (searchQuery.isLoading) content = <Loading message="Searching recipes..." />;
@@ -116,10 +147,78 @@ export const Home: React.FC = () => {
       );
     }
   } else {
-    // default landing view (prompt + action)
-    if (categories.isLoading) content = <Loading message="Loading categories..." />;
-    else if (categories.isError) content = <ErrorDialog message="Failed to load categories." onRetry={() => categories.refetch()} />;
-    else content = <EmptyState title="Recipe Discovery" message="Search or browse categories to begin." actionLabel="Random Recipe" onAction={handleRandom} />;
+    // default landing view - show random recipes with better error handling
+    console.log('Default view - multipleRandomRecipes state:', {
+      isLoading: multipleRandomRecipes.isLoading,
+      isError: multipleRandomRecipes.isError,
+      data: multipleRandomRecipes.data,
+      dataLength: multipleRandomRecipes.data?.length
+    });
+
+    if (multipleRandomRecipes.isLoading) {
+      console.log('Showing loading state');
+      content = <Loading message="Loading random recipes..." />;
+    } else if (multipleRandomRecipes.isError) {
+      console.log('Showing error state with fallback option');
+      content = (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
+            <div className="title-bar">
+              <div className="title-bar-text">⚠️ Unable to Load Random Recipes</div>
+            </div>
+            <div className="window-body" style={{ padding: '16px' }}>
+              <p style={{ margin: '0 0 16px', fontSize: '11px' }}>
+                The recipe service is temporarily unavailable. You can still:
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setView('browse')} style={{ fontSize: '11px' }}>
+                  Browse Categories
+                </button>
+                <button onClick={() => multipleRandomRecipes.refetch()} style={{ fontSize: '11px' }}>
+                  Try Again
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    } else if (multipleRandomRecipes.data && multipleRandomRecipes.data.length > 0) {
+      console.log('Showing recipes:', multipleRandomRecipes.data.length);
+      content = (
+        <div>
+          <div style={{ marginBottom: '16px', padding: '8px 0', textAlign: 'center' }}>
+            <h2 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 'bold' }}>🍴 Discover Random Recipes</h2>
+            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>Click any recipe card to view full details</p>
+          </div>
+          <RecipeGrid meals={multipleRandomRecipes.data} onSelect={openMeal} />
+        </div>
+      );
+    } else {
+      // Fallback when no error but also no data
+      console.log('No data available - showing fallback options');
+      content = (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
+            <div className="title-bar">
+              <div className="title-bar-text">🍽️ Welcome to Recipe Discovery</div>
+            </div>
+            <div className="window-body" style={{ padding: '16px' }}>
+              <p style={{ margin: '0 0 16px', fontSize: '11px' }}>
+                Start exploring delicious recipes by:
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={handleRandom} style={{ fontSize: '11px' }}>
+                  Get Random Recipe
+                </button>
+                <button onClick={() => setView('browse')} style={{ fontSize: '11px' }}>
+                  Browse Categories
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   return (
@@ -130,7 +229,7 @@ export const Home: React.FC = () => {
         <div className="toolbar-buttons" style={{ flexShrink: 0 }}>
           <RandomRecipeButton onClick={handleRandom} active={view === 'random'} />
           <button onClick={() => setView('browse')} className={view === 'browse' ? 'active' : ''}>Categories</button>
-          <button onClick={() => { setSelectedCategory(undefined); setView('default'); }} className={view === 'default' ? 'active' : ''}>Home</button>
+          <button onClick={handleHome} className={view === 'default' ? 'active' : ''}>Home</button>
         </div>
       </div>
       <div className="content-area">
