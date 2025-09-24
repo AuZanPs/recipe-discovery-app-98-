@@ -1,0 +1,2 @@
+.window.main-shell { min-height: calc(100vh - 32px); }
+.window.main-shell .window-body { display: flex; flex-direction: column; height: calc(100vh - 80px); }
