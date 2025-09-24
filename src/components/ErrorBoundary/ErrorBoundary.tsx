@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <div className="window-body" style={{ padding: '32px', textAlign: 'center' }}>
               <div className="error-boundary-content">
-                <h2 style={{ margin: '0 0 16px', color: '#cc0000' }}>⚠️ Application Error</h2>
+                <h2 style={{ margin: '0 0 16px', color: '#cc0000' }}>Application Error</h2>
                 <p style={{ marginBottom: '24px', fontSize: '12px' }}>
                   The Recipe Discovery application has encountered an unexpected error.
                 </p>

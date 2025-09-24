@@ -11,6 +11,7 @@ import { RecipeDetailModal } from '../components/RecipeDetailModal/RecipeDetailM
 import { Loading } from '../components/States/Loading';
 import { ErrorDialog } from '../components/States/ErrorDialog';
 import { EmptyState } from '../components/States/EmptyState';
+import { HelpModal } from '../components/HelpModal';
 import { MealPartial, ProcessedMeal } from '../types';
 
 export const Home = () => {
@@ -19,32 +20,49 @@ export const Home = () => {
   const [selectedProcessed, setSelectedProcessed] = useState<ProcessedMeal | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [view, setView] = useState<'default' | 'search' | 'category' | 'random' | 'browse'>('default');
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpTooltipPos, setHelpTooltipPos] = useState({ x: 0, y: 0 });
 
   const searchQuery = useRecipes(search);
   const categories = useCategories();
   const categoryMeals = useByCategory(selectedCategory);
   const randomMeal = useRandomRecipe();
-  const multipleRandomRecipes = useMultipleRandomRecipes(4); // Reduced to 4 to minimize API calls
+  const homeRandomRecipes = useMultipleRandomRecipes(6); // 6 for home page
+  const randomSectionRecipes = useMultipleRandomRecipes(3); // 3 for random section
 
-  // Force fresh data on mount and ensure default view
+  // **FIX 1: Ensure default view loads immediately with data**
   useEffect(() => {
-    console.log('Home component mounted - ensuring default state');
+    console.log('Home component mounted - setting up default view');
+    
     // Always start in default view
     setView('default');
-    // Only refetch if we don't have data and aren't already loading
-    if (!multipleRandomRecipes.data && !multipleRandomRecipes.isLoading) {
-      multipleRandomRecipes.refetch();
+    
+    // Force immediate fetch if no data exists
+    if (!homeRandomRecipes.data && !homeRandomRecipes.isLoading && !homeRandomRecipes.isError) {
+      console.log('No home data found, triggering immediate fetch...');
+      homeRandomRecipes.refetch();
     }
-  }, []); // Remove dependency to prevent infinite loops
+  }, []); // Empty dependency array to run only once on mount
+
+  // **FIX 1: Add debugging to track view state changes**
+  useEffect(() => {
+    console.log('View changed to:', view);
+    console.log('Home recipes status:', {
+      isLoading: homeRandomRecipes.isLoading,
+      hasData: !!homeRandomRecipes.data,
+      dataLength: homeRandomRecipes.data?.length,
+      isError: homeRandomRecipes.isError
+    });
+  }, [view, homeRandomRecipes.isLoading, homeRandomRecipes.data, homeRandomRecipes.isError]);
 
   // Debug logging
   console.log('Home render:', {
     view,
-    multipleRandomRecipesStatus: {
-      isLoading: multipleRandomRecipes.isLoading,
-      isError: multipleRandomRecipes.isError,
-      dataLength: multipleRandomRecipes.data?.length,
-      error: multipleRandomRecipes.error
+    homeRandomRecipesStatus: {
+      isLoading: homeRandomRecipes.isLoading,
+      isError: homeRandomRecipes.isError,
+      dataLength: homeRandomRecipes.data?.length,
+      error: homeRandomRecipes.error
     }
   });
 
@@ -59,16 +77,28 @@ export const Home = () => {
   }, [search]);
 
   const handleRandom = useCallback(() => {
+    console.log('Random recipe requested');
     setView('random');
-    randomMeal.refetch();
-  }, [randomMeal]);
+    randomSectionRecipes.refetch(); // Use randomSectionRecipes for random section
+  }, [randomSectionRecipes]);
 
   const handleHome = useCallback(() => {
+    console.log('Home button clicked - resetting to default view');
     setSearch('');
     setSelectedCategory(undefined);
     setView('default');
-    multipleRandomRecipes.refetch(); // Refresh random recipes when going home
-  }, [multipleRandomRecipes]);
+    // Refresh home recipes when explicitly going home
+    homeRandomRecipes.refetch();
+  }, [homeRandomRecipes]);
+
+  const handleHelp = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHelpTooltipPos({ 
+      x: rect.left + rect.width / 2, 
+      y: rect.bottom + 5 
+    });
+    setShowHelp(true);
+  }, []);
 
   const openMeal = useCallback(async (meal: MealPartial) => {
     if (meal.strInstructions) {
@@ -85,6 +115,7 @@ export const Home = () => {
   }, []);
 
   const closeModal = () => setSelectedProcessed(null);
+  const closeHelp = () => setShowHelp(false);
 
   let content: React.ReactNode = null;
 
@@ -108,12 +139,12 @@ export const Home = () => {
       if (categories.isError) return 'Categories failed to load.';
       if (categories.data) return `${categories.data.length} categories.`;
     } else if (view === 'default') {
-      if (multipleRandomRecipes.isLoading) return 'Loading random recipes...';
-      if (multipleRandomRecipes.isError) return 'Failed to load random recipes.';
-      if (multipleRandomRecipes.data) return `${multipleRandomRecipes.data.length} random recipes loaded.`;
+      if (homeRandomRecipes.isLoading) return 'Loading featured recipes...';
+      if (homeRandomRecipes.isError) return 'Failed to load featured recipes.';
+      if (homeRandomRecipes.data) return `${homeRandomRecipes.data.length} featured recipes loaded.`;
     }
     return '';
-  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data, multipleRandomRecipes.isLoading, multipleRandomRecipes.isError, multipleRandomRecipes.data]);
+  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data, homeRandomRecipes.isLoading, homeRandomRecipes.isError, homeRandomRecipes.data]);
 
   if (view === 'search') {
     if (searchQuery.isLoading) content = <Loading message="Searching recipes..." />;
@@ -126,9 +157,20 @@ export const Home = () => {
     else if (selectedCategory && categoryMeals.data && categoryMeals.data.length === 0) content = <EmptyState title="Empty" message="No meals in this category." />;
     else if (categoryMeals.data) content = <RecipeGrid meals={categoryMeals.data} onSelect={openMeal} />;
   } else if (view === 'random') {
-    if (randomMeal.isLoading) content = <Loading message="Rolling the dice..." />;
-    else if (randomMeal.isError) content = <ErrorDialog message="Failed to fetch random meal." onRetry={handleRandom} />;
-    else if (randomMeal.data) content = <RecipeGrid meals={[randomMeal.data]} onSelect={openMeal} />;
+    // Show 3 random recipes in random section
+    if (randomSectionRecipes.isLoading) content = <Loading message="Rolling the dice for 3 random recipes..." />;
+    else if (randomSectionRecipes.isError) content = <ErrorDialog message="Failed to fetch random recipes." onRetry={handleRandom} />;
+    else if (randomSectionRecipes.data && randomSectionRecipes.data.length > 0) {
+      content = (
+        <div>
+          <div style={{ marginBottom: '16px', padding: '8px 0', textAlign: 'center' }}>
+            <h2 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 'bold' }}>Random Recipe Discovery</h2>
+            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>3 surprise recipes just for you!</p>
+          </div>
+          <RecipeGrid meals={randomSectionRecipes.data} onSelect={openMeal} />
+        </div>
+      );
+    }
   } else if (view === 'browse') {
     if (categories.isLoading) content = <Loading message="Loading categories..." />;
     else if (categories.isError) content = <ErrorDialog message="Failed to load categories." onRetry={() => categories.refetch()} />;
@@ -147,24 +189,24 @@ export const Home = () => {
       );
     }
   } else {
-    // default landing view - show random recipes with better error handling
-    console.log('Default view - multipleRandomRecipes state:', {
-      isLoading: multipleRandomRecipes.isLoading,
-      isError: multipleRandomRecipes.isError,
-      data: multipleRandomRecipes.data,
-      dataLength: multipleRandomRecipes.data?.length
+    // default landing view - show 6 featured random recipes
+    console.log('Default view - homeRandomRecipes state:', {
+      isLoading: homeRandomRecipes.isLoading,
+      isError: homeRandomRecipes.isError,
+      data: homeRandomRecipes.data,
+      dataLength: homeRandomRecipes.data?.length
     });
 
-    if (multipleRandomRecipes.isLoading) {
+    if (homeRandomRecipes.isLoading) {
       console.log('Showing loading state');
-      content = <Loading message="Loading random recipes..." />;
-    } else if (multipleRandomRecipes.isError) {
+      content = <Loading message="Loading featured recipes..." />;
+    } else if (homeRandomRecipes.isError) {
       console.log('Showing error state with fallback option');
       content = (
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
             <div className="title-bar">
-              <div className="title-bar-text">⚠️ Unable to Load Random Recipes</div>
+              <div className="title-bar-text">Unable to Load Featured Recipes</div>
             </div>
             <div className="window-body" style={{ padding: '16px' }}>
               <p style={{ margin: '0 0 16px', fontSize: '11px' }}>
@@ -174,7 +216,7 @@ export const Home = () => {
                 <button onClick={() => setView('browse')} style={{ fontSize: '11px' }}>
                   Browse Categories
                 </button>
-                <button onClick={() => multipleRandomRecipes.refetch()} style={{ fontSize: '11px' }}>
+                <button onClick={() => homeRandomRecipes.refetch()} style={{ fontSize: '11px' }}>
                   Try Again
                 </button>
               </div>
@@ -182,15 +224,15 @@ export const Home = () => {
           </div>
         </div>
       );
-    } else if (multipleRandomRecipes.data && multipleRandomRecipes.data.length > 0) {
-      console.log('Showing recipes:', multipleRandomRecipes.data.length);
+    } else if (homeRandomRecipes.data && homeRandomRecipes.data.length > 0) {
+      console.log('Showing recipes:', homeRandomRecipes.data.length);
       content = (
         <div>
           <div style={{ marginBottom: '16px', padding: '8px 0', textAlign: 'center' }}>
-            <h2 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 'bold' }}>🍴 Discover Random Recipes</h2>
-            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>Click any recipe card to view full details</p>
+            <h2 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 'bold' }}>Featured Random Recipes</h2>
+            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>6 delicious recipes to get you started - Click any card for details</p>
           </div>
-          <RecipeGrid meals={multipleRandomRecipes.data} onSelect={openMeal} />
+          <RecipeGrid meals={homeRandomRecipes.data} onSelect={openMeal} />
         </div>
       );
     } else {
@@ -200,7 +242,7 @@ export const Home = () => {
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
             <div className="title-bar">
-              <div className="title-bar-text">🍽️ Welcome to Recipe Discovery</div>
+              <div className="title-bar-text">Welcome to Recipe Discovery</div>
             </div>
             <div className="window-body" style={{ padding: '16px' }}>
               <p style={{ margin: '0 0 16px', fontSize: '11px' }}>
@@ -221,8 +263,16 @@ export const Home = () => {
     }
   }
 
+  // Window controls with help button (98.css pattern)
+  const windowControls = (
+    <>
+      <button aria-label="Help" onClick={handleHelp} title="Help & Information">?</button>
+      <button aria-label="Close" disabled title="Close (disabled)">✕</button>
+    </>
+  );
+
   return (
-    <WindowFrame title="Recipe Discovery" className="main-shell" controls={null}>
+    <WindowFrame title="Recipe Discovery" className="main-shell" controls={windowControls}>
       <div className="toolbar">
         <SearchBar onSearch={handleSearch} />
         <CategoryFilter categories={categories.data} value={selectedCategory} onChange={handleCategory} />
@@ -240,6 +290,7 @@ export const Home = () => {
       {selectedProcessed && !loadingDetail && (
         <RecipeDetailModal meal={selectedProcessed} onClose={closeModal} />
       )}
+      {showHelp && <HelpModal x={helpTooltipPos.x} y={helpTooltipPos.y} onClose={closeHelp} />}
     </WindowFrame>
   );
 };
