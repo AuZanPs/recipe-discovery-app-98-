@@ -5,9 +5,11 @@ export const useRandomRecipe = () => {
   return useQuery({
     queryKey: ['meals', 'random'],
     queryFn: getRandomMeal,
-    staleTime: 0, // Always fresh for single random recipe
-    gcTime: 1000 * 60 * 5, // 5 minutes
-    retry: 2, // Retry failed requests
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 3000),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    retry: 1,
+    retryDelay: 200,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 };

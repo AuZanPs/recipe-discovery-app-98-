@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, memo, lazy, Suspense } from 'react';
 import { useRecipes, useRandomRecipe, useCategories, useByCategory, useMultipleRandomRecipes } from '../hooks';
+import { useProgressiveRecipes } from '../hooks/useProgressiveRecipes';
 import { processMeal } from '../types';
 import { getMealById } from '../api';
 import { WindowFrame } from '../components/WindowFrame/WindowFrame';
@@ -7,98 +8,138 @@ import { SearchBar } from '../components/SearchBar/SearchBar';
 import { CategoryFilter } from '../components/CategoryFilter/CategoryFilter';
 import { RandomRecipeButton } from '../components/RandomRecipeButton/RandomRecipeButton';
 import { RecipeGrid } from '../components/RecipeGrid/RecipeGrid';
-import { RecipeDetailModal } from '../components/RecipeDetailModal/RecipeDetailModal';
+const RecipeDetailModal = lazy(() =>
+  import('../components/RecipeDetailModal/RecipeDetailModal').then(mod => ({ default: mod.RecipeDetailModal }))
+);
 import { Loading } from '../components/States/Loading';
 import { ErrorDialog } from '../components/States/ErrorDialog';
 import { EmptyState } from '../components/States/EmptyState';
-import { HelpModal } from '../components/HelpModal';
+import { HelpTooltip } from '../components/HelpTooltip';
 import { MealPartial, ProcessedMeal } from '../types';
 
-export const Home = () => {
+export const Home = memo(() => {
+  console.log('HOME COMPONENT: Starting render cycle');
+  
+  // FIXED STATE MANAGEMENT - No more forced resets
+  const [view, setView] = useState<'home' | 'search' | 'category' | 'random' | 'browse'>('home');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProcessed, setSelectedProcessed] = useState<ProcessedMeal | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [view, setView] = useState<'default' | 'search' | 'category' | 'random' | 'browse'>('default');
-  const [showHelp, setShowHelp] = useState(false);
-  const [helpTooltipPos, setHelpTooltipPos] = useState({ x: 0, y: 0 });
+  const [hasInitialized, setHasInitialized] = useState(false); // Prevent multiple initializations
+  // NEW (Spec): Welcome screen state (session scoped) - appears unless explicitly dismissed with 'true'
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    const dismissed = sessionStorage.getItem('welcomeDismissed');
+    return dismissed !== 'true'; // CRITICAL: Only hide if exactly 'true'
+  });
 
+  // QUERY HOOKS - These remain unchanged
   const searchQuery = useRecipes(search);
   const categories = useCategories();
   const categoryMeals = useByCategory(selectedCategory);
   const randomMeal = useRandomRecipe();
-  const homeRandomRecipes = useMultipleRandomRecipes(6); // 6 for home page
-  const randomSectionRecipes = useMultipleRandomRecipes(3); // 3 for random section
+  // UPDATED: Progressive loading for instant home display - shows fallbacks immediately
+  const homeRandomRecipes = useProgressiveRecipes(9);
+  const randomSectionRecipes = useMultipleRandomRecipes(3);
 
-  // **FIX 1: Ensure default view loads immediately with data**
+  // FIXED: Initialize ONCE on mount only - NO problematic dependencies
   useEffect(() => {
-    console.log('Home component mounted - setting up default view');
-    
-    // Always start in default view
-    setView('default');
-    
-    // Force immediate fetch if no data exists
-    if (!homeRandomRecipes.data && !homeRandomRecipes.isLoading && !homeRandomRecipes.isError) {
-      console.log('No home data found, triggering immediate fetch...');
-      homeRandomRecipes.refetch();
+    if (!hasInitialized) {
+      console.log('INITIALIZATION: Setting up initial home state (once only)');
+      setView('home');
+      setSearch('');
+      setSelectedCategory(undefined);
+      setHasInitialized(true);
+      
+      // Progressive recipes auto-start, no manual refetch needed
+      console.log('INITIALIZATION: Progressive recipes will auto-load');
     }
-  }, []); // Empty dependency array to run only once on mount
+  }, []); // CRITICAL: Empty dependencies - runs only once on mount
 
-  // **FIX 1: Add debugging to track view state changes**
+  // FIXED: Only handle actual page refresh - NO forced view resets
   useEffect(() => {
-    console.log('View changed to:', view);
-    console.log('Home recipes status:', {
-      isLoading: homeRandomRecipes.isLoading,
-      hasData: !!homeRandomRecipes.data,
-      dataLength: homeRandomRecipes.data?.length,
-      isError: homeRandomRecipes.isError
-    });
-  }, [view, homeRandomRecipes.isLoading, homeRandomRecipes.data, homeRandomRecipes.isError]);
+    const wasRefreshed = sessionStorage.getItem('recipe-app-needs-home-reset');
+    if (wasRefreshed) {
+      console.log('PAGE REFRESH: Detected actual page refresh, cleaning up');
+      sessionStorage.removeItem('recipe-app-needs-home-reset');
+      // Don't force view change here - let natural state work
+    }
+    
+    const handleBeforeUnload = () => {
+      sessionStorage.setItem('recipe-app-needs-home-reset', 'true');
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []); // CRITICAL: Empty dependencies
+
+  // REMOVED: All the problematic useEffects that were forcing view resets
+  // - No more useEffect with [homeRandomRecipes] dependency
+  // - No more useEffect with [view] dependency that forced home
+  // - No more popstate handler that forced home
+  // - No more view correction logic that prevented navigation
 
   // Debug logging
   console.log('Home render:', {
     view,
     homeRandomRecipesStatus: {
       isLoading: homeRandomRecipes.isLoading,
-      isError: homeRandomRecipes.isError,
-      dataLength: homeRandomRecipes.data?.length,
-      error: homeRandomRecipes.error
+      recipeCount: homeRandomRecipes.recipes.length,
+      loadingCount: homeRandomRecipes.loadingCount
     }
   });
 
-  const handleSearch = useCallback((q: string) => {
-    setSearch(q);
+  // CLEAN EVENT HANDLERS - ensure welcome screen hides on any user action
+  const dismissWelcome = useCallback(() => {
+    if (showWelcome) {
+      console.log('WELCOME: Dismissing welcome screen');
+      setShowWelcome(false);
+      sessionStorage.setItem('welcomeDismissed', 'true');
+    }
+  }, [showWelcome]);
+
+  const handleSearch = useCallback((searchTerm: string) => {
+    dismissWelcome();
+    console.log('NAVIGATION: User searched for', searchTerm);
     setView('search');
-  }, []);
+    setSearch(searchTerm);
+    setSelectedCategory(undefined);
+    setSelectedProcessed(null);
+  }, [dismissWelcome]);
 
   const handleCategory = useCallback((cat?: string) => {
-    setSelectedCategory(cat);
-    if (cat) setView('category'); else setView(search ? 'search' : 'default');
-  }, [search]);
+    dismissWelcome();
+    console.log('NAVIGATION: User selected category', cat);
+    if (cat) {
+      setView('category');
+      setSelectedCategory(cat);
+      setSearch('');
+      setSelectedProcessed(null);
+    } else {
+      setView(search ? 'search' : 'home');
+      setSelectedCategory(undefined);
+    }
+  }, [search, dismissWelcome]);
 
   const handleRandom = useCallback(() => {
-    console.log('Random recipe requested');
+    dismissWelcome();
+    console.log('NAVIGATION: User requested random meal');
     setView('random');
-    randomSectionRecipes.refetch(); // Use randomSectionRecipes for random section
-  }, [randomSectionRecipes]);
-
-  const handleHome = useCallback(() => {
-    console.log('Home button clicked - resetting to default view');
+    setSelectedProcessed(null);
     setSearch('');
     setSelectedCategory(undefined);
-    setView('default');
-    // Refresh home recipes when explicitly going home
-    homeRandomRecipes.refetch();
-  }, [homeRandomRecipes]);
+    randomSectionRecipes.refetch();
+  }, [randomSectionRecipes, dismissWelcome]);
 
-  const handleHelp = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setHelpTooltipPos({ 
-      x: rect.left + rect.width / 2, 
-      y: rect.bottom + 5 
-    });
-    setShowHelp(true);
-  }, []);
+  const handleHome = useCallback(() => {
+    dismissWelcome();
+    console.log('NAVIGATION: User clicked back to home');
+    setView('home');
+    setSearch('');
+    setSelectedCategory(undefined);
+    setSelectedProcessed(null);
+    // Progressive recipes auto-refresh, no manual refetch needed
+  }, [dismissWelcome]);
 
   const openMeal = useCallback(async (meal: MealPartial) => {
     if (meal.strInstructions) {
@@ -115,9 +156,69 @@ export const Home = () => {
   }, []);
 
   const closeModal = () => setSelectedProcessed(null);
-  const closeHelp = () => setShowHelp(false);
 
   let content: React.ReactNode = null;
+
+  // NEW: Inline WelcomeScreen component
+  const WelcomeScreen = ({ onNavigate }: { onNavigate: (section: 'home' | 'browse' | 'random') => void }) => (
+    <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+      <div className="window" style={{ display: 'inline-block', maxWidth: '500px', width: '100%' }}>
+        <div className="title-bar">
+          <div className="title-bar-text">Welcome to Recipe Discovery</div>
+        </div>
+        <div className="window-body" style={{ padding: '20px' }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: '14px' }}>Choose where to start:</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+            <button onClick={() => onNavigate('home')} style={{ padding: '12px', fontSize: '11px', minHeight: '60px' }}>
+              <strong>HOME</strong><br /><small>9 featured recipes</small>
+            </button>
+            <button onClick={() => onNavigate('browse')} style={{ padding: '12px', fontSize: '11px', minHeight: '60px' }}>
+              <strong>CATEGORIES</strong><br /><small>Browse by type</small>
+            </button>
+            <button onClick={() => onNavigate('random')} style={{ padding: '12px', fontSize: '11px', minHeight: '60px' }}>
+              <strong>RANDOM</strong><br /><small>Surprise me</small>
+            </button>
+            <div style={{ padding: '12px', border: '1px inset #c0c0c0', background: '#f0f0f0', fontSize: '11px', minHeight: '60px' }}>
+              <strong>SEARCH</strong><br /><small>Use the search bar above</small>
+            </div>
+          </div>
+          <p style={{ fontSize: '10px', color: '#666', margin: 0 }}>
+            You can always use the toolbar buttons to navigate between sections
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+  // Window controls moved above early return so welcome path can reuse
+  const windowControls = (
+    <>
+      <HelpTooltip>
+        <button aria-label="Help" title="Help & Information">?</button>
+      </HelpTooltip>
+      <button aria-label="Close" disabled title="Close (disabled)">X</button>
+    </>
+  );
+
+  // EARLY RETURN: Welcome screen (shows immediately, dismissed on any action)
+  if (showWelcome) {
+    console.log('HOME RENDER: Displaying welcome screen (showWelcome = true)');
+    return (
+      <WindowFrame title="Recipe Discovery" className="main-shell" controls={windowControls}>
+        <div className="toolbar">
+          <SearchBar onSearch={(q) => { handleSearch(q); dismissWelcome(); }} />
+          <CategoryFilter categories={categories.data} value={selectedCategory} onChange={(cat) => { handleCategory(cat); dismissWelcome(); }} />
+          <div className="toolbar-buttons" style={{ flexShrink: 0 }}>
+            <RandomRecipeButton onClick={() => { handleRandom(); dismissWelcome(); }} active={false} />
+            <button onClick={() => { setView('browse'); dismissWelcome(); }} className={view === 'browse' ? 'active' : ''}>Categories</button>
+            <button onClick={() => { setView('home'); dismissWelcome(); }} className={view === 'home' ? 'active' : ''}>Home</button>
+          </div>
+        </div>
+        <div className="content-area">
+          <WelcomeScreen onNavigate={(section) => { setView(section); dismissWelcome(); }} />
+        </div>
+      </WindowFrame>
+    );
+  }
 
   // Derive a status message for aria-live
   const statusMessage = useMemo(() => {
@@ -138,13 +239,12 @@ export const Home = () => {
       if (categories.isLoading) return 'Loading categories.';
       if (categories.isError) return 'Categories failed to load.';
       if (categories.data) return `${categories.data.length} categories.`;
-    } else if (view === 'default') {
-      if (homeRandomRecipes.isLoading) return 'Loading featured recipes...';
-      if (homeRandomRecipes.isError) return 'Failed to load featured recipes.';
-      if (homeRandomRecipes.data) return `${homeRandomRecipes.data.length} featured recipes loaded.`;
+    } else if (view === 'home') {
+      if (homeRandomRecipes.isLoading && homeRandomRecipes.recipes.length === 0) return 'Loading featured recipes...';
+      if (homeRandomRecipes.recipes.length > 0) return `${homeRandomRecipes.recipes.length} featured recipes loaded.`;
     }
     return '';
-  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data, homeRandomRecipes.isLoading, homeRandomRecipes.isError, homeRandomRecipes.data]);
+  }, [view, search, searchQuery.isLoading, searchQuery.isError, searchQuery.data, categoryMeals.isLoading, categoryMeals.isError, categoryMeals.data, selectedCategory, randomMeal.isLoading, randomMeal.isError, randomMeal.data, categories.isLoading, categories.isError, categories.data, homeRandomRecipes.isLoading, homeRandomRecipes.recipes]);
 
   if (view === 'search') {
     if (searchQuery.isLoading) content = <Loading message="Searching recipes..." />;
@@ -189,55 +289,33 @@ export const Home = () => {
       );
     }
   } else {
-    // default landing view - show 6 featured random recipes
-    console.log('Default view - homeRandomRecipes state:', {
+    // HOME landing view - show featured random recipes with progressive loading
+    console.log('HOME view - homeRandomRecipes state:', {
       isLoading: homeRandomRecipes.isLoading,
-      isError: homeRandomRecipes.isError,
-      data: homeRandomRecipes.data,
-      dataLength: homeRandomRecipes.data?.length
+      recipeCount: homeRandomRecipes.recipes.length,
+      loadingCount: homeRandomRecipes.loadingCount
     });
 
-    if (homeRandomRecipes.isLoading) {
-      console.log('Showing loading state');
+    if (homeRandomRecipes.isLoading && homeRandomRecipes.recipes.length === 0) {
       content = <Loading message="Loading featured recipes..." />;
-    } else if (homeRandomRecipes.isError) {
-      console.log('Showing error state with fallback option');
-      content = (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
-            <div className="title-bar">
-              <div className="title-bar-text">Unable to Load Featured Recipes</div>
-            </div>
-            <div className="window-body" style={{ padding: '16px' }}>
-              <p style={{ margin: '0 0 16px', fontSize: '11px' }}>
-                The recipe service is temporarily unavailable. You can still:
-              </p>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => setView('browse')} style={{ fontSize: '11px' }}>
-                  Browse Categories
-                </button>
-                <button onClick={() => homeRandomRecipes.refetch()} style={{ fontSize: '11px' }}>
-                  Try Again
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    } else if (homeRandomRecipes.data && homeRandomRecipes.data.length > 0) {
-      console.log('Showing recipes:', homeRandomRecipes.data.length);
+    } else if (homeRandomRecipes.recipes.length > 0) {
+      // Show recipes with loading indicator if still loading more
       content = (
         <div>
           <div style={{ marginBottom: '16px', padding: '8px 0', textAlign: 'center' }}>
             <h2 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 'bold' }}>Featured Random Recipes</h2>
-            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>6 delicious recipes to get you started - Click any card for details</p>
+            <p style={{ margin: 0, fontSize: '11px', color: '#666' }}>
+              {homeRandomRecipes.isLoading 
+                ? `Showing ${homeRandomRecipes.recipes.length} recipes - Loading more...`
+                : `${homeRandomRecipes.recipes.length} delicious recipes to get you started - Click any card for details`
+              }
+            </p>
           </div>
-          <RecipeGrid meals={homeRandomRecipes.data} onSelect={openMeal} />
+          <RecipeGrid meals={homeRandomRecipes.recipes} onSelect={openMeal} />
         </div>
       );
     } else {
-      // Fallback when no error but also no data
-      console.log('No data available - showing fallback options');
+      // Fallback when no recipes available - progressive recipes should always have fallbacks
       content = (
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <div className="window" style={{ display: 'inline-block', minWidth: '300px' }}>
@@ -249,9 +327,6 @@ export const Home = () => {
                 Start exploring delicious recipes by:
               </p>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button onClick={handleRandom} style={{ fontSize: '11px' }}>
-                  Get Random Recipe
-                </button>
                 <button onClick={() => setView('browse')} style={{ fontSize: '11px' }}>
                   Browse Categories
                 </button>
@@ -263,13 +338,9 @@ export const Home = () => {
     }
   }
 
-  // Window controls with help button (98.css pattern)
-  const windowControls = (
-    <>
-      <button aria-label="Help" onClick={handleHelp} title="Help & Information">?</button>
-      <button aria-label="Close" disabled title="Close (disabled)">✕</button>
-    </>
-  );
+  // windowControls already declared above (shared with welcome path)
+
+  console.log('RENDER STATE: view =', view, 'search =', search, 'category =', selectedCategory);
 
   return (
     <WindowFrame title="Recipe Discovery" className="main-shell" controls={windowControls}>
@@ -279,7 +350,7 @@ export const Home = () => {
         <div className="toolbar-buttons" style={{ flexShrink: 0 }}>
           <RandomRecipeButton onClick={handleRandom} active={view === 'random'} />
           <button onClick={() => setView('browse')} className={view === 'browse' ? 'active' : ''}>Categories</button>
-          <button onClick={handleHome} className={view === 'default' ? 'active' : ''}>Home</button>
+          <button onClick={handleHome} className={view === 'home' ? 'active' : ''}>Home</button>
         </div>
       </div>
       <div className="content-area">
@@ -288,9 +359,12 @@ export const Home = () => {
         {loadingDetail && <Loading message="Loading recipe details..." />}
       </div>
       {selectedProcessed && !loadingDetail && (
-        <RecipeDetailModal meal={selectedProcessed} onClose={closeModal} />
+        <Suspense fallback={null}>
+          <RecipeDetailModal meal={selectedProcessed} onClose={closeModal} />
+        </Suspense>
       )}
-      {showHelp && <HelpModal x={helpTooltipPos.x} y={helpTooltipPos.y} onClose={closeHelp} />}
     </WindowFrame>
   );
-};
+});
+
+Home.displayName = 'Home';

@@ -6,7 +6,9 @@ export const useByCategory = (category?: string) => {
     queryKey: ['meals', 'category', category],
     queryFn: () => getMealsByCategory(category || ''),
     enabled: !!category,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 30 * 60 * 1000,    // 30 minutes
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 };

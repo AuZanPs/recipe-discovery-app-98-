@@ -1,67 +1,78 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getRandomMeal } from '../api';
 import { type MealPartial } from '../types/recipe';
+import { FALLBACK_RECIPES } from '../utils/fallbackRecipes';
+import { imagePreloader } from '../utils/imagePreloader';
 
-// Fetch multiple random recipes with proper throttling and deduplication
-export const useMultipleRandomRecipes = (count: number = 6) => {
-  return useQuery({
-    queryKey: ['meals', 'random-multiple', count],
-    queryFn: async (): Promise<MealPartial[]> => {
-      console.log(`Starting to fetch ${count} random recipes sequentially...`);
+// Sequential fetcher to avoid overwhelming the API
+async function fetchSequentialRecipes(count: number): Promise<MealPartial[]> {
+  console.log(`SEQUENTIAL: Fetching ${count} recipes one by one`);
+  
+  const recipes: MealPartial[] = [];
+  const seenIds = new Set<string>();
+  
+  for (let i = 0; i < count * 2 && recipes.length < count; i++) {
+    try {
+      console.log(`Fetching recipe ${recipes.length + 1}/${count} (attempt ${i + 1})`);
+      const recipe = await getRandomMeal();
       
-      const results: MealPartial[] = [];
-      const seenIds = new Set<string>();
-      const maxAttempts = count * 3; // Allow more attempts to get unique recipes
-      let attempts = 0;
-      
-      while (results.length < count && attempts < maxAttempts) {
-        attempts++;
+      if (recipe && recipe.idMeal && !seenIds.has(recipe.idMeal)) {
+        recipes.push(recipe);
+        seenIds.add(recipe.idMeal);
+        console.log(`Got unique recipe: ${recipe.strMeal}`);
         
+        // Preload image immediately
+        if (recipe.strMealThumb) {
+          imagePreloader.preloadImage(recipe.strMealThumb).catch(() => {});
+        }
+      }
+      
+    } catch (error) {
+      console.warn(`Recipe fetch ${i + 1} failed:`, error);
+    }
+  }
+  
+  console.log(`SEQUENTIAL: Got ${recipes.length}/${count} recipes`);
+  return recipes;
+}
+
+export const useMultipleRandomRecipes = (count: number = 9) => {
+  const queryClient = useQueryClient();
+  
+  return useQuery({
+    queryKey: ['random-recipes', count],
+    queryFn: async (): Promise<MealPartial[]> => {
+      console.log(`INSTANT LOAD: Starting with ${count} fallback recipes`);
+      
+      // INSTANT RESPONSE: Return fallbacks immediately for initial render
+      const fallbacks = FALLBACK_RECIPES.slice(0, count) as MealPartial[];
+      
+      // Preload fallback images immediately
+      imagePreloader.preloadRecipeImages(fallbacks);
+      
+      // BACKGROUND API FETCH: Load fresh data in background
+      setTimeout(async () => {
         try {
-          console.log(`Fetching recipe ${results.length + 1}/${count} (attempt ${attempts}/${maxAttempts})...`);
-          const meal = await getRandomMeal();
+          console.log('BACKGROUND: Fetching fresh API recipes');
+          const freshRecipes = await fetchSequentialRecipes(count);
           
-          if (meal && meal.idMeal) {
-            // Check for duplicates using Set for O(1) lookup
-            if (!seenIds.has(meal.idMeal)) {
-              console.log(`Got unique recipe: ${meal.strMeal} (ID: ${meal.idMeal})`);
-              results.push(meal);
-              seenIds.add(meal.idMeal);
-            } else {
-              console.log(`Duplicate recipe found: ${meal.strMeal} (ID: ${meal.idMeal}), skipping...`);
-            }
-          } else {
-            console.log(`API returned null or invalid meal, skipping... (attempt ${attempts})`);
+          if (freshRecipes.length >= Math.floor(count / 2)) {
+            // Update cache with fresh data (triggers re-render)
+            queryClient.setQueryData(['random-recipes', count], freshRecipes);
+            console.log(`BACKGROUND: Updated with ${freshRecipes.length} fresh recipes`);
           }
         } catch (error) {
-          console.error(`Failed to fetch recipe (attempt ${attempts}):`, error);
-          // Don't throw here - continue trying with remaining attempts
+          console.log('BACKGROUND: API failed, keeping fallbacks');
         }
-        
-        // Progressive delay to be respectful to API
-        if (results.length < count && attempts < maxAttempts) {
-          const delay = Math.min(100 + (attempts * 50), 500); // 100ms to 500ms
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
+      }, 100); // Start background fetch after 100ms
       
-      console.log(`Successfully fetched ${results.length} unique recipes out of ${count} requested`);
-      
-      // Return what we got, even if it's less than requested
-      if (results.length === 0) {
-        throw new Error(`Failed to fetch any random recipes after ${attempts} attempts. Please try again.`);
-      }
-      
-      return results;
+      return fallbacks; // Return immediately for instant display
     },
-    enabled: true,
-    staleTime: 1000 * 60 * 5, // 5 minutes - longer caching to reduce API calls
-    gcTime: 1000 * 60 * 10, // 10 minutes - keep in memory longer
-    retry: 2, // Retry the entire operation if it fails
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff
-    // Refetch on mount for fresh data experience
-    refetchOnMount: true,
-    // Don't refetch on window focus for random recipes
+    
+    staleTime: 5 * 60 * 1000,  // 5 minutes - allow background updates
+    gcTime: 30 * 60 * 1000,   // 30 minutes cache
+    refetchOnMount: false,     // Don't refetch if data exists
+    retry: 0,                  // No retries
     refetchOnWindowFocus: false,
   });
 };

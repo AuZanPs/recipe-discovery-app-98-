@@ -1,131 +1,150 @@
-import { MealPartial, MealsResponse, CategoriesResponse, Category } from '../types/recipe';
+import { MealPartial, Category } from '../types/recipe';
 
-// Environment-driven configuration.
-// TheMealDB convention: the segment after /v1/ is usually the API key ("1" for test/free key).
-// Allow overriding via Vite env variables placed in .env (never commit secrets directly!).
-const API_KEY = import.meta.env.VITE_MEALDB_API_KEY || '1';
-const BASE = (import.meta.env.VITE_MEALDB_BASE_URL as string | undefined) || `https://www.themealdb.com/api/json/v1/${API_KEY}`;
+const BASE = 'https://www.themealdb.com/api/json/v1/1';
 
-// Request throttling to prevent rate limiting
-class RequestThrottler {
+class APIManager {
+  private activeRequests = 0;
+  private readonly MAX_CONCURRENT = 2; // INCREASE from 1 to 2
+  private readonly MIN_INTERVAL = 800;  // DECREASE from 1200ms to 800ms
   private lastRequestTime = 0;
-  private readonly minInterval = 1000; // 1 second between requests
-  private requestQueue: Array<() => void> = [];
-  private processing = false;
+  private errorCount = 0;
+  private readonly MAX_ERRORS = 3;
 
-  async throttledFetch<T>(url: string, maxRetries = 3): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.requestQueue.push(async () => {
-        try {
-          const result = await this.executeWithRetry<T>(url, maxRetries);
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-      this.processQueue();
-    });
-  }
+  async safeFetch(url: string): Promise<any> {
+    // Check error threshold - fallback to safe mode if too many errors
+    if (this.errorCount >= this.MAX_ERRORS) {
+      console.warn('SAFE MODE: Too many errors, falling back to single request');
+      return this.safeFetchSingleMode(url);
+    }
 
-  private async processQueue(): Promise<void> {
-    if (this.processing || this.requestQueue.length === 0) return;
-    
-    this.processing = true;
-    
-    while (this.requestQueue.length > 0) {
-      const request = this.requestQueue.shift()!;
-      
-      // Ensure minimum interval between requests
+    // Wait for available slot
+    while (this.activeRequests >= this.MAX_CONCURRENT) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    this.activeRequests++;
+
+    try {
+      // Enforce rate limiting with reduced interval
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
-      if (timeSinceLastRequest < this.minInterval) {
-        await new Promise(resolve => setTimeout(resolve, this.minInterval - timeSinceLastRequest));
+      if (timeSinceLastRequest < this.MIN_INTERVAL) {
+        await new Promise(resolve => setTimeout(resolve, this.MIN_INTERVAL - timeSinceLastRequest));
       }
-      
+
       this.lastRequestTime = Date.now();
-      await request();
-    }
-    
-    this.processing = false;
-  }
 
-  private async executeWithRetry<T>(url: string, maxRetries: number): Promise<T> {
-    let lastError: Error | null = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // Create timeout signal for older browsers compatibility
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
-        const res = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId); // Clear timeout if request completes
-        
-        if (!res.ok) {
-          if (res.status === 429) {
-            // Rate limited - wait longer before retry
-            const delay = Math.pow(2, attempt) * 2000; // Exponential backoff
-            console.log(`Rate limited (429). Retrying in ${delay}ms... (attempt ${attempt}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          throw new Error(`Request failed (${res.status}): ${res.statusText}`);
+      // BASIC FETCH - NO CUSTOM HEADERS
+      const response = await fetch(url, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          this.errorCount++;
+          console.warn(`RATE LIMIT: Error count now ${this.errorCount}`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          throw new Error('Rate limited');
         }
-        
-        return await res.json();
-      } catch (error) {
-        lastError = error as Error;
-        console.error(`API request failed (attempt ${attempt}/${maxRetries}):`, error);
-        
-        if (attempt < maxRetries) {
-          // Exponential backoff for retries
-          const delay = Math.pow(2, attempt) * 1000;
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        throw new Error(`HTTP ${response.status}`);
       }
+
+      // Success - reset error count
+      this.errorCount = Math.max(0, this.errorCount - 1);
+      return await response.json();
+
+    } finally {
+      this.activeRequests--;
+    }
+  }
+
+  // Fallback to single request mode if errors occur
+  private async safeFetchSingleMode(url: string): Promise<any> {
+    // Use original safe settings
+    while (this.activeRequests >= 1) {
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     
-    throw new Error(`Failed after ${maxRetries} attempts. Last error: ${lastError?.message || 'Unknown error'}`);
+    this.activeRequests++;
+    
+    try {
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      if (timeSinceLastRequest < 1200) {
+        await new Promise(resolve => setTimeout(resolve, 1200 - timeSinceLastRequest));
+      }
+
+      this.lastRequestTime = Date.now();
+
+      const response = await fetch(url, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          throw new Error('Rate limited');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return await response.json();
+
+    } finally {
+      this.activeRequests--;
+    }
   }
 }
 
-// Global throttler instance
-const throttler = new RequestThrottler();
+const apiManager = new APIManager();
 
-// Wrapper function that uses throttling
-async function getJSON<T>(url: string): Promise<T> {
-  return throttler.throttledFetch<T>(url);
-}
-
+// SAFE API FUNCTIONS
 export async function searchMeals(q: string): Promise<MealPartial[]> {
-  const data = await getJSON<MealsResponse>(`${BASE}/search.php?s=${encodeURIComponent(q)}`);
-  return data.meals || [];
+  try {
+    const data = await apiManager.safeFetch(`${BASE}/search.php?s=${encodeURIComponent(q)}`);
+    return data.meals || [];
+  } catch (error) {
+    console.warn('Search failed:', error);
+    return [];
+  }
 }
 
 export async function getMealById(id: string): Promise<MealPartial | null> {
-  const data = await getJSON<MealsResponse>(`${BASE}/lookup.php?i=${id}`);
-  return data.meals?.[0] || null;
+  try {
+    const data = await apiManager.safeFetch(`${BASE}/lookup.php?i=${id}`);
+    return data.meals?.[0] || null;
+  } catch (error) {
+    console.warn('Meal lookup failed:', error);
+    return null;
+  }
 }
 
 export async function getRandomMeal(): Promise<MealPartial | null> {
-  const data = await getJSON<MealsResponse>(`${BASE}/random.php`);
-  return data.meals?.[0] || null;
+  try {
+    const data = await apiManager.safeFetch(`${BASE}/random.php`);
+    return data.meals?.[0] || null;
+  } catch (error) {
+    console.warn('Random meal failed:', error);
+    return null;
+  }
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const data = await getJSON<CategoriesResponse>(`${BASE}/categories.php`);
-  return data.categories;
+  try {
+    const data = await apiManager.safeFetch(`${BASE}/categories.php`);
+    return data.categories || [];
+  } catch (error) {
+    console.warn('Categories failed:', error);
+    return [];
+  }
 }
 
 export async function getMealsByCategory(category: string): Promise<MealPartial[]> {
-  const data = await getJSON<MealsResponse>(`${BASE}/filter.php?c=${encodeURIComponent(category)}`);
-  return data.meals || [];
+  try {
+    const data = await apiManager.safeFetch(`${BASE}/filter.php?c=${encodeURIComponent(category)}`);
+    return data.meals || [];
+  } catch (error) {
+    console.warn('Category meals failed:', error);
+    return [];
+  }
 }

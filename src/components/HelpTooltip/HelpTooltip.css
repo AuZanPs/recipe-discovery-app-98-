@@ -1,0 +1,48 @@
+.help-tooltip-popup {
+  pointer-events: auto;
+  filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+.help-tooltip-window {
+  width: 280px;
+  max-width: 90vw;
+  background: #c0c0c0;
+}
+
+.help-tooltip-window .window-body {
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.3;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.help-content p {
+  margin: 0 0 8px 0;
+}
+
+.help-content hr {
+  border: none;
+  border-top: 1px solid #808080;
+  margin: 8px 0;
+}
+
+.help-content ul {
+  margin: 4px 0 8px 16px;
+  padding: 0;
+}
+
+.help-content li {
+  margin-bottom: 2px;
+}
+
+.help-content strong {
+  color: #000080;
+}
+
+/* Ensure tooltip doesn't go off screen */
+@media (max-width: 768px) {
+  .help-tooltip-window {
+    width: 250px;
+  }
+}

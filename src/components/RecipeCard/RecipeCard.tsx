@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { MealPartial } from '../../types/recipe';
 import { formatCategoryArea } from '../../utils/metadata';
 
@@ -6,7 +7,7 @@ interface Props {
   onSelect: (meal: MealPartial) => void;
 }
 
-export const RecipeCard = ({ meal, onSelect }: Props) => {
+export const RecipeCard = memo(({ meal, onSelect }: Props) => {
   const cat = meal.strCategory?.trim() || '';
   const area = meal.strArea?.trim() || '';
 
@@ -39,6 +40,7 @@ export const RecipeCard = ({ meal, onSelect }: Props) => {
             src={meal.strMealThumb}
             alt={meal.strMeal}
             className="meal-thumb"
+            loading="lazy"
           />
           <div className="meal-text">
             {meta}
@@ -48,4 +50,6 @@ export const RecipeCard = ({ meal, onSelect }: Props) => {
       </div>
     </div>
   );
-};
+});
+
+RecipeCard.displayName = 'RecipeCard';

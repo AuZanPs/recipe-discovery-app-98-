@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { MealPartial } from '../../types/recipe';
 import { RecipeCard } from '../RecipeCard/RecipeCard';
 
@@ -6,7 +7,7 @@ interface Props {
   onSelect: (meal: MealPartial) => void;
 }
 
-export const RecipeGrid = ({ meals, onSelect }: Props) => {
+export const RecipeGrid = memo(({ meals, onSelect }: Props) => {
   return (
     <div className="meals-grid">
       {meals.map(m => (
@@ -14,4 +15,6 @@ export const RecipeGrid = ({ meals, onSelect }: Props) => {
       ))}
     </div>
   );
-};
+});
+
+RecipeGrid.displayName = 'RecipeGrid';
