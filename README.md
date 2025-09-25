@@ -1,4 +1,4 @@
-Demo: https://github.com/AuZanPs/recipe-discovery-app-98-
+Demo: https://auzanps.github.io/recipe-discovery-app-98-/
 
 # Recipe Discovery
 
@@ -84,12 +84,17 @@ Run:
 npm test
 ```
 
-## Deployment (GitHub Pages Option)
+## Deployment
 
-If using GitHub Pages (via Actions):
-1. Set `"homepage": "https://USERNAME.github.io/recipe-discovery-app"` in `package.json` (optional if using custom action).
-2. Add an Action that runs build and deploys `dist` to `gh-pages` branch.
-3. If you use a subpath, set `base` in `vite.config` accordingly.
+This app is automatically deployed to GitHub Pages via GitHub Actions on every push to main.
+
+**Live Demo:** https://auzanps.github.io/recipe-discovery-app-98-/
+
+### Manual Deployment
+You can also deploy manually using:
+```bash
+npm run deploy
+```
 
 ## License
 
