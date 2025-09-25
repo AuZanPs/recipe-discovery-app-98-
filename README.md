@@ -96,10 +96,4 @@ You can also deploy manually using:
 npm run deploy
 ```
 
-## License
-
-MIT
-
----
-
 Focused on clarity, accessibility, and a nostalgic aesthetic without unnecessary complexity.
