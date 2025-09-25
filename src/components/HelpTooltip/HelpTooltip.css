@@ -1,6 +1,7 @@
 .help-tooltip-popup {
   pointer-events: auto;
   filter: drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.3));
+  animation: tooltip-appear 0.15s ease-out;
 }
 
 .help-tooltip-window {
@@ -45,4 +46,44 @@
   .help-tooltip-window {
     width: 250px;
   }
+}
+
+/* Mobile overlay mode */
+.help-tooltip-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) 16px 16px 16px;
+  animation: overlay-appear 0.2s ease-out;
+}
+
+.help-tooltip-overlay-inner {
+  width: 100%;
+  max-width: 520px;
+  margin-top: 10vh;
+}
+
+@media (max-width: 480px) {
+  .help-tooltip-overlay-inner {
+    margin-top: 6vh;
+    max-width: 92vw;
+  }
+  .help-tooltip-window {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@keyframes tooltip-appear {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes overlay-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, memo, lazy, Suspense } from 'react';
-import { useRecipes, useRandomRecipe, useCategories, useByCategory, useMultipleRandomRecipes } from '../hooks';
+import { useRecipes, useRandomRecipe, useCategories, useByCategory, useMultipleRandomRecipes, useRandomRecipeRefresh } from '../hooks';
 import { useProgressiveRecipes } from '../hooks/useProgressiveRecipes';
 import { processMeal } from '../types';
 import { getMealById } from '../api';
@@ -41,6 +41,7 @@ export const Home = memo(() => {
   // UPDATED: Progressive loading for instant home display - shows fallbacks immediately
   const homeRandomRecipes = useProgressiveRecipes(9);
   const randomSectionRecipes = useMultipleRandomRecipes(3);
+  const refreshRandomRecipes = useRandomRecipeRefresh();
 
   // FIXED: Initialize ONCE on mount only - NO problematic dependencies
   useEffect(() => {
@@ -124,12 +125,14 @@ export const Home = memo(() => {
   const handleRandom = useCallback(() => {
     dismissWelcome();
     console.log('NAVIGATION: User requested random meal');
+    // Clear any cached random recipes to avoid stale flash
+    refreshRandomRecipes();
     setView('random');
     setSelectedProcessed(null);
     setSearch('');
     setSelectedCategory(undefined);
     randomSectionRecipes.refetch();
-  }, [randomSectionRecipes, dismissWelcome]);
+  }, [randomSectionRecipes, dismissWelcome, refreshRandomRecipes]);
 
   const handleHome = useCallback(() => {
     dismissWelcome();

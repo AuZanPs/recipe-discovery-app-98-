@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { Landing } from './pages/Landing';
+import { HelmetProvider } from 'react-helmet-async';
 
 const rawPath = window.location.pathname;
 const base = (import.meta as any).env.BASE_URL || '/';
@@ -12,7 +13,9 @@ const norm = path.startsWith('/') ? path : '/' + path;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {norm === '/app' ? <App /> : <Landing />}
+    <HelmetProvider>
+      {norm === '/app' ? <App /> : <Landing />}
+    </HelmetProvider>
   </StrictMode>
 );
 
